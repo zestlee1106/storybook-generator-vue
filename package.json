@@ -2,6 +2,7 @@
   "name": "test-extension-vue",
   "displayName": "test-extension-vue",
   "description": "",
+  "publisher": "ywlee",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.82.0"
@@ -14,10 +15,19 @@
   "contributes": {
     "commands": [
       {
-        "command": "test-extension-vue.helloWorld",
+        "command": "createStory",
         "title": "Hello World"
       }
-    ]
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "createStory",
+          "when": "resourceLangId == typescript",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
