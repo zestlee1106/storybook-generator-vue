@@ -75,5 +75,9 @@
     "@types/ejs": "^3.1.5",
     "ejs": "^3.1.9",
     "vue": "^3.2.36"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zestlee1106/storybook-generator-vue.git"
   }
 }
