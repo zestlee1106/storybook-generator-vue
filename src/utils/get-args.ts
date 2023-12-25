@@ -383,7 +383,15 @@ export function parseContent(
   }
 }
 
+/**
+ * TypeScript 코드에서 props 의 제네릭 인수, defaultOptions, emit 이벤트를 추출
+ * TypeScript의 AST (Abstract Syntax Tree)를 사용하여 코드를 파싱하고 필요한 정보를 추출
+ *
+ * @param {string} code - 파싱할 TypeScript 코드
+ * @returns {Record<string, string | object>} 추출된 props 의 제네릭 인수, defaultOptions, emit 이벤트의 객체
+ */
 function extractGenericArgument(code: string): Record<string, string | object> {
+  // 제공된 코드로부터 TypeScript 소스 파일 객체를 생성
   const sourceFile = ts.createSourceFile(
     "temp.ts",
     code,
@@ -391,14 +399,21 @@ function extractGenericArgument(code: string): Record<string, string | object> {
     true
   );
 
+  // 추출된 정보를 저장할 변수를 초기화
   let genericArgument: string | null = null;
   let defaultOptions: Record<string, string> | null = null;
   let emitEvents: string[] = [];
 
+  /**
+   * TypeScript CallExpression 노드에서 정보를 추출
+   * call expression이 'defineProps', 'defineEmits', 또는 'withDefaults'인지 확인하고 관련 정보를 추출
+   *
+   * @param {ts.CallExpression} node - 정보를 추출할 CallExpression 노드
+   */
   const extractFromCallExpression = (node: ts.CallExpression) => {
     const { expression, typeArguments, arguments: args } = node;
 
-    // Check if the call expression is 'defineProps'
+    // call expression이 'defineProps'인지 확인하고 제네릭 인수를 추출
     if (ts.isIdentifier(expression) && expression.text === "defineProps") {
       if (typeArguments && typeArguments.length > 0) {
         const typeArgument = typeArguments[0];
@@ -411,7 +426,7 @@ function extractGenericArgument(code: string): Record<string, string | object> {
       }
     }
 
-    // Check if the call expression is 'defineEmits'
+    // call expression이 'defineEmits'인지 확인하고 emit 이벤트를 추출
     if (ts.isIdentifier(expression) && expression.text === "defineEmits") {
       outputChannel.appendLine("defineEmits");
       if (typeArguments && typeArguments.length > 0) {
@@ -441,8 +456,8 @@ function extractGenericArgument(code: string): Record<string, string | object> {
       }
     }
 
+    // call expression이 'withDefaults'인지 확인하고 기본 옵션을 추출
     if (ts.isIdentifier(expression) && expression.text === "withDefaults") {
-      // Extract default options from the arguments
       if (args.length > 1 && ts.isObjectLiteralExpression(args[1])) {
         defaultOptions = args[1].properties.reduce(
           (acc: Record<string, string>, prop) => {
@@ -456,7 +471,7 @@ function extractGenericArgument(code: string): Record<string, string | object> {
       }
     }
 
-    // Check arguments of the call expression
+    // call expression의 인수를 재귀적으로 확인
     args.forEach((arg) => {
       if (ts.isCallExpression(arg)) {
         extractFromCallExpression(arg);
@@ -464,6 +479,13 @@ function extractGenericArgument(code: string): Record<string, string | object> {
     });
   };
 
+  /**
+   * TypeScript의 AST에 대한 visitor 함수
+   * AST의 각 노드를 방문하고, 노드가 VariableDeclaration인 경우 정보를 추출
+   *
+   * @param {ts.Node} node - 방문할 노드
+   * @returns {ts.VisitResult<ts.Node>} 방문한 노드를 반환
+   */
   const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
     if (ts.isVariableDeclaration(node)) {
       const { initializer } = node;
@@ -472,15 +494,19 @@ function extractGenericArgument(code: string): Record<string, string | object> {
       }
     }
 
+    // 현재 노드의 자식 노드를 방문
     ts.forEachChild(node, visitor);
 
     return node;
   };
 
+  // 소스 파일의 각 statement를 방문
   sourceFile.statements.forEach(visitor);
 
+  // 추출된 emit 이벤트를 로그에 출력
   outputChannel.appendLine(`emitEvents: ${emitEvents}`);
 
+  // 추출된 정보를 반환
   return {
     genericArgument: genericArgument || "",
     defaultOptions: defaultOptions || {},
