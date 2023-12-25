@@ -206,22 +206,14 @@ function handleImportDeclaration(node: ts.Node, projectRoot: string) {
  * 주어진 스크립트 내용을 파싱하고, 그것의 모든 자식 노드를 순회하여 InterfaceDeclaration과 ImportDeclaration을 처리하는 함수
  *
  * @param scriptContent - 파싱할 스크립트의 내용
- * @param parsedConfig - 파싱된 타입스크립트 설정 (스크립트의 타겟을 결정하는 데 사용)
  * @param projectRoot - 프로젝트의 루트 경로 (ImportDeclaration을 처리하는 데 사용)
  */
-function parseScriptContent(
-  scriptContent: string,
-  parsedConfig: ts.ParsedCommandLine,
-  projectRoot: string
-) {
-  // 스크립트의 타겟을 결정한다. 설정에서 타겟이 지정되지 않은 경우, ES5를 기본값으로 사용한다.
-  const scriptTarget = parsedConfig.options.target || ts.ScriptTarget.ES5;
-
+function parseScriptContent(scriptContent: string, projectRoot: string) {
   // 주어진 스크립트 내용을 SourceFile로 만든다.
   const sourceFile = ts.createSourceFile(
     "temp.ts",
     scriptContent,
-    scriptTarget,
+    ts.ScriptTarget.ES5,
     true,
     ts.ScriptKind.TS
   );
@@ -239,14 +231,9 @@ function parseScriptContent(
  * 주어진 내용을 파싱하고, 그것의 scriptSetup 또는 script의 내용을 처리하는 함수
  *
  * @param content - 파싱할 내용
- * @param parsedConfig - 파싱된 타입스크립트 설정 (스크립트의 내용을 처리하는 데 사용)
  * @param projectRoot - 프로젝트의 루트 경로 (스크립트의 내용을 처리하는 데 사용)
  */
-export function parse1(
-  content: string,
-  parsedConfig: ts.ParsedCommandLine,
-  projectRoot: string
-) {
+export function parseContent(content: string, projectRoot: string) {
   try {
     // 주어진 내용을 파싱한다.
     const parsed = parse(content);
@@ -262,7 +249,7 @@ export function parse1(
     }
 
     // scriptSetup 또는 script의 내용을 처리한다.
-    parseScriptContent(scriptContent, parsedConfig, projectRoot);
+    parseScriptContent(scriptContent, projectRoot);
   } catch (e) {
     if (e instanceof Error) {
       // 에러가 발생한 경우, 에러 메시지를 출력한다.

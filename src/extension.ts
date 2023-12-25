@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as fs from "fs";
-import { parse1 } from "./utils/index";
+import { parseContent } from "./utils/index";
 import * as ts from "typescript";
 import * as path from "path";
 
@@ -17,20 +17,12 @@ function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const configPath = path.join(projectRoot, "tsconfig.json");
-      const readConfigFile = ts.readConfigFile(configPath, ts.sys.readFile);
-      const parsedConfig = ts.parseJsonConfigFileContent(
-        readConfigFile.config,
-        ts.sys,
-        projectRoot
-      );
-
       fs.readFile(uri.fsPath, "utf8", function (err, data) {
         if (err) {
           throw err;
         }
         vscode.window.showInformationMessage(data);
-        const content = parse1(data, parsedConfig, projectRoot);
+        parseContent(data, projectRoot);
       });
     }
   );
