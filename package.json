@@ -1,6 +1,6 @@
 {
-  "name": "test-extension-vue",
-  "displayName": "test-extension-vue",
+  "name": "storybook-generator-vue",
+  "displayName": "storybook-generator-vue",
   "description": "",
   "publisher": "ywlee",
   "version": "0.0.1",
@@ -30,14 +30,14 @@
     },
     "configuration": {
       "type": "object",
-      "title": "test-extension-vue",
+      "title": "storybook-generator-vue",
       "properties": {
-        "test-extension-vue.enabled": {
+        "storybook-generator-vue.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Enable/disable this extension"
         },
-        "test-extension-vue.alias": {
+        "storybook-generator-vue.alias": {
           "type": "object",
           "default": {},
           "description": "alias 설정"
