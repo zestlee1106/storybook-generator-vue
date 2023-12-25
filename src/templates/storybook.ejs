@@ -1,0 +1,69 @@
+<%_ 
+    const importComponent = componentName ? `import ${componentName} from './index.vue';` : '';
+    const importType = importedName ? `import type {${importedName}} from '${importedPath}';` : '';
+    const propsEntries = props ? Object.entries(props).map(([prop, type]) => `${prop}: ${typeof type === 'string' ? type : type.join('|')};`).join('\n') : '';
+    const interfaceProps = props ? `interface ${componentName}Args ${importedName ? `extends ${importedName}` : ''} {\n${propsEntries}\n}` : '';
+_%>
+<%- importComponent %>
+<%- importType %>
+
+<%- interfaceProps %>
+
+export default {
+title: 'Components/<%= componentName %>',
+component: <%= componentName %>,
+argTypes: {
+<%_ if (finalProps) { _%>
+<%_ Object.entries(finalProps).forEach(([prop, type]) => { _%>
+<%= prop %>: {
+type: <%- typeof type === 'string' ? `'${type}'` : "'string'" %>,
+control: '<%-
+      type === 'boolean' ? 'boolean' :
+          type === 'string' ? 'txt' :
+            'select'
+    %>',
+<%_ if (defaultOptions[prop] !== undefined) { _%>
+defaultValue: <%- type === 'string' ? (defaultOptions[prop] === "''" ? "''" : defaultOptions[prop] === null ? null : `'${defaultOptions[prop]}'`) : defaultOptions[prop] %>,
+<%_ } _%>
+<%_ if (typeof type === 'object') { _%>
+options: [<%- type.map((option) => `${option}`).join(', ') %>],
+<%_ } _%>
+},
+<%_ }); _%>
+<%_ } _%>
+<%_ if (defineEmits.length > 0) { _%>
+<%_ defineEmits.forEach((emit) => { _%>
+on<%= emit %>: {
+action: '<%= emit %>',
+},
+<%_ }) _%>
+<%_ } _%>
+},
+render: (args: <%= componentName %>Args) => ({
+components: {
+<%= componentName %>,
+},
+setup() {
+return { args };
+},
+template: `
+<<%= componentName %> v-bind="args" v-on="args"> <%= componentName %>
+</<%= componentName %>>
+`,
+}),
+};
+
+export const Default = {
+args: {},
+}
+
+<%_ if (defaultOptions) { _%>
+<%_ Object.entries(defaultOptions).forEach(([prop, value]) => { _%>
+export const <%= componentName %>With<%= prop.charAt(0).toUpperCase() + prop.slice(1) %> = {
+args: {
+<%= prop %>: <%- value %>,
+},
+}
+
+<%_ }) _%>
+<%_ } _%>
