@@ -27,6 +27,22 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "test-extension-vue",
+      "properties": {
+        "test-extension-vue.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable this extension"
+        },
+        "test-extension-vue.alias": {
+          "type": "object",
+          "default": {},
+          "description": "alias 설정"
+        }
+      }
     }
   },
   "scripts": {
