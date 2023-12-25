@@ -1,71 +1,22 @@
-# test-extension-vue README
+# vue 파일로 storybook 파일을 만드는 패키지
 
-This is the README for your extension "test-extension-vue". After writing up a brief description, we recommend including the following sections.
+- 한땀 한땀 만들어야 해서 귀찮은 작업을 도와주는 패키지 입니다
+- .vue 파일에서 우클릭을 하고 스토리북 생성을 클릭하면 됩니다
 
-## Features
+# path alias 등록하는 법
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- user settings 에 추가해 주면 됩니다.
+- settings.json 파일을 열고 아래처럼 추가해 주세요
 
-For example if there is an image subfolder under your extension project workspace:
+```json
+{
+  // 다른 설정값들...
 
-\!\[feature X\]\(images/feature-x.png\)
+  "storybook-generator-vue.alias": {
+    "@": "src",
+    "@public": "src/public"
+  }
+}
+```
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+- 만약 프로젝트 별로 다르게 하고 싶다면, `.vscode/settings.json` 파일을 만들어서 저 내용을 추가해 주시면 됩니다.
