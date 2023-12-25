@@ -2,6 +2,7 @@ import { parse } from "@vue/compiler-sfc";
 import * as vscode from "vscode";
 import * as ts from "typescript";
 import * as fs from "fs";
+import * as path from "path";
 
 const outputChannel = vscode.window.createOutputChannel("Ywlee");
 const config = vscode.workspace.getConfiguration("test-extension-vue");
@@ -35,7 +36,7 @@ function getPropsInterface(
 function getMemberType(
   member: ts.PropertySignature,
   sourceFile: ts.SourceFile
-): string {
+): string | string[] {
   // member의 타입이 없는 경우 "unknown"을 반환한다.
   if (!member.type) {
     return "unknown";
@@ -48,9 +49,7 @@ function getMemberType(
 
   // member의 타입이 UnionTypeNode인 경우, 각 타입의 텍스트를 "|"로 연결하여 반환한다.
   if (ts.isUnionTypeNode(member.type)) {
-    return member.type.types
-      .map((type) => type.getText(sourceFile))
-      .join(" | ");
+    return member.type.types.map((type) => type.getText(sourceFile));
   }
 
   // 위의 모든 조건이 충족되지 않는 경우, member의 타입 텍스트를 그대로 반환한다.
@@ -122,16 +121,38 @@ function visitNodeAndFindPropsInterface(node: ts.Node, compareText: string) {
  * @param node - 타입스크립트 노드 (이 노드가 InterfaceDeclaration인지 확인하고, 그 이름이 "Props"인지 확인한다)
  * @param sourceFile - 타입스크립트 소스 파일 (인터페이스의 멤버들을 가져오는 데 사용)
  */
-function handleInterfaceDeclaration(node: ts.Node, sourceFile: ts.SourceFile) {
+function handleInterfaceDeclaration(
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+  definePropsName: string
+) {
+  let propsName = "";
+  let props = {};
+  let extendsInterface = "";
+
   // 노드가 InterfaceDeclaration이고 그 이름이 "Props"인 경우에만 처리한다.
-  if (ts.isInterfaceDeclaration(node) && node.name.text === "Props") {
+  if (ts.isInterfaceDeclaration(node) && node.name.text === definePropsName) {
     // 인터페이스의 멤버들을 가져온다.
-    const props = getPropsFromInterface(node, sourceFile);
-    // 인터페이스의 이름을 출력한다.
-    outputChannel.appendLine(`Interface name: ${node.name.text}`);
-    // 인터페이스의 멤버들을 출력한다.
-    outputChannel.appendLine(`Members: ${JSON.stringify(props)}`);
+    propsName = node.name.text;
+    props = getPropsFromInterface(node, sourceFile);
+
+    // 인터페이스가 다른 인터페이스를 확장하는 경우, 확장하는 인터페이스의 이름을 가져온다.
+    if (node.heritageClauses) {
+      node.heritageClauses.forEach((heritageClause) => {
+        if (heritageClause.token === ts.SyntaxKind.ExtendsKeyword) {
+          heritageClause.types.forEach((type) => {
+            extendsInterface = type.expression.getText(sourceFile);
+          });
+        }
+      });
+    }
   }
+
+  return {
+    name: propsName,
+    props,
+    extendsInterface,
+  };
 }
 
 /**
@@ -140,7 +161,12 @@ function handleInterfaceDeclaration(node: ts.Node, sourceFile: ts.SourceFile) {
  * @param node - 타입스크립트 노드 (이 노드가 ImportDeclaration인지 확인하고, 그것의 namedBindings를 확인한다)
  * @param projectRoot - 프로젝트의 루트 경로 (모듈의 실제 경로를 찾는 데 사용)
  */
-function handleImportDeclaration(node: ts.Node, projectRoot: string) {
+function handleImportDeclaration(
+  node: ts.Node,
+  projectRoot: string,
+  propsName: string,
+  uri: vscode.Uri
+) {
   // 노드가 ImportDeclaration이 아니거나 namedBindings가 없는 경우, 함수를 종료한다.
   if (!ts.isImportDeclaration(node) || !node.importClause?.namedBindings) {
     return;
@@ -153,27 +179,49 @@ function handleImportDeclaration(node: ts.Node, projectRoot: string) {
     return;
   }
 
+  let name = "";
+  let importedProps = {};
+  let importPath = "";
+
   // NamedImports의 모든 요소를 순회한다.
   namedBindings.elements.forEach((specifier) => {
     // ImportSpecifier가 "Props"를 포함하는 경우에만 처리한다.
-    if (
-      ts.isImportSpecifier(specifier) &&
-      specifier.name.text.includes("Props")
-    ) {
+    if (ts.isImportSpecifier(specifier) && specifier.name.text === propsName) {
+      if (ts.isImportDeclaration(node)) {
+        const moduleSpecifier = node.moduleSpecifier;
+
+        // moduleSpecifier가 StringLiteral인 경우, 그것의 텍스트를 가져온다.
+        if (ts.isStringLiteral(moduleSpecifier)) {
+          const childImportPath = moduleSpecifier.text;
+          importPath = childImportPath;
+        }
+      }
+
       const moduleSpecifier = node.moduleSpecifier.getText();
       let modulePath = moduleSpecifier.slice(1, moduleSpecifier.length - 1); // Remove the quotes
       const firstPath = modulePath.split("/")[0];
       const aliasPath = alias[firstPath];
 
-      // aliasPath가 없는 경우, 함수를 종료한다.
-      if (!aliasPath) {
-        return;
+      let filePath = "";
+
+      if (aliasPath) {
+        modulePath = modulePath.replace(firstPath, aliasPath);
+        filePath = `${projectRoot}/${modulePath}`;
+      } else {
+        modulePath = getAbsolutePath(uri.fsPath, modulePath);
+        filePath = modulePath;
       }
 
-      // modulePath에서 firstPath를 aliasPath로 교체한다.
-      modulePath = modulePath.replace(firstPath, aliasPath);
-      const filePath = `${projectRoot}/${modulePath}`;
-      outputChannel.appendLine(`File path: ${filePath}`);
+      // modulePath 에 확장자가 없을 경우 index.d.ts 파일을 가져온다
+      if (!filePath.includes(".")) {
+        filePath = `${filePath}/index.d.ts`;
+      }
+
+      // index.d.ts 파일이 없을 경우 index.ts 파일을 가져온다
+      if (!fs.existsSync(filePath)) {
+        filePath = filePath.replace(".d.ts", ".ts");
+      }
+
       const fileContent = fs.readFileSync(filePath, "utf8");
       const importedFile = ts.createSourceFile(
         filePath,
@@ -191,15 +239,17 @@ function handleImportDeclaration(node: ts.Node, projectRoot: string) {
       // "Props" 인터페이스를 찾은 경우, 그것의 멤버들을 출력한다.
       if (propsInterface) {
         const props = getPropsFromInterface(propsInterface, importedFile);
-        outputChannel.appendLine(
-          `Interface name: ${
-            (propsInterface as ts.InterfaceDeclaration).name.text
-          }`
-        );
-        outputChannel.appendLine(`Members: ${JSON.stringify(props)}`);
+        name = (propsInterface as ts.InterfaceDeclaration).name.text;
+        importedProps = props;
       }
     }
   });
+
+  return {
+    importedName: name,
+    importedProps,
+    importedPath: importPath,
+  };
 }
 
 /**
@@ -208,7 +258,14 @@ function handleImportDeclaration(node: ts.Node, projectRoot: string) {
  * @param scriptContent - 파싱할 스크립트의 내용
  * @param projectRoot - 프로젝트의 루트 경로 (ImportDeclaration을 처리하는 데 사용)
  */
-function parseScriptContent(scriptContent: string, projectRoot: string) {
+function parseScriptContent(
+  scriptContent: string,
+  projectRoot: string,
+  definePropsName: string,
+  defaultOptions: Record<string, string>,
+  defineEmits: string[],
+  uri: vscode.Uri
+) {
   // 주어진 스크립트 내용을 SourceFile로 만든다.
   const sourceFile = ts.createSourceFile(
     "temp.ts",
@@ -218,22 +275,79 @@ function parseScriptContent(scriptContent: string, projectRoot: string) {
     ts.ScriptKind.TS
   );
 
+  let name = "";
+  let props = {};
+  let extendsInterface = "";
+
   // SourceFile의 모든 자식 노드를 순회한다.
   ts.forEachChild(sourceFile, function (node) {
     // 노드가 InterfaceDeclaration인 경우, 그것을 처리한다.
-    handleInterfaceDeclaration(node, sourceFile);
-    // 노드가 ImportDeclaration인 경우, 그것을 처리한다.
-    handleImportDeclaration(node, projectRoot);
-  });
-}
+    if (ts.isInterfaceDeclaration(node)) {
+      const {
+        name: childName,
+        props: childProps,
+        extendsInterface: childExtendsInterface,
+      } = handleInterfaceDeclaration(node, sourceFile, definePropsName);
 
+      name = childName;
+      props = childProps;
+      extendsInterface = childExtendsInterface;
+    }
+  });
+
+  let importedName = "";
+  let importedProps = {};
+  let importedPath = "";
+
+  // SourceFile의 모든 자식 노드를 순회한다.
+  ts.forEachChild(sourceFile, function (node) {
+    // 노드가 ImportDeclaration인 경우, 그것을 처리한다.
+    if (ts.isImportDeclaration(node)) {
+      const importedData = handleImportDeclaration(
+        node,
+        projectRoot,
+        extendsInterface || definePropsName,
+        uri
+      );
+
+      if (!importedData) {
+        return;
+      }
+
+      importedName = importedData.importedName;
+      importedProps = importedData.importedProps;
+      importedPath = importedData.importedPath;
+    }
+  });
+
+  const finalProps = { ...importedProps, ...props };
+
+  outputChannel.appendLine(
+    `default options: ${JSON.stringify(defaultOptions)}`
+  );
+
+  return {
+    finalProps,
+    propsName: name,
+    props,
+    importedName,
+    importedProps,
+    importedPath,
+    defaultOptions,
+    defineEmits,
+  };
+}
 /**
  * 주어진 내용을 파싱하고, 그것의 scriptSetup 또는 script의 내용을 처리하는 함수
  *
  * @param content - 파싱할 내용
  * @param projectRoot - 프로젝트의 루트 경로 (스크립트의 내용을 처리하는 데 사용)
  */
-export function parseContent(content: string, projectRoot: string) {
+export function parseContent(
+  content: string,
+  projectRoot: string,
+  uri: vscode.Uri
+) {
   try {
     // 주어진 내용을 파싱한다.
     const parsed = parse(content);
@@ -248,12 +362,134 @@ export function parseContent(content: string, projectRoot: string) {
       return;
     }
 
-    // scriptSetup 또는 script의 내용을 처리한다.
-    parseScriptContent(scriptContent, projectRoot);
+    const genericArgument = extractGenericArgument(scriptContent);
+    if (!genericArgument) {
+      return;
+    }
+
+    return parseScriptContent(
+      scriptContent,
+      projectRoot,
+      genericArgument?.genericArgument as string,
+      genericArgument?.defaultOptions as Record<string, string>,
+      genericArgument?.emitEvents as string[],
+      uri
+    );
   } catch (e) {
     if (e instanceof Error) {
       // 에러가 발생한 경우, 에러 메시지를 출력한다.
       outputChannel.appendLine(`Error: ${e.message}`);
     }
   }
+}
+
+function extractGenericArgument(code: string): Record<string, string | object> {
+  const sourceFile = ts.createSourceFile(
+    "temp.ts",
+    code,
+    ts.ScriptTarget.Latest,
+    true
+  );
+
+  let genericArgument: string | null = null;
+  let defaultOptions: Record<string, string> | null = null;
+  let emitEvents: string[] = [];
+
+  const extractFromCallExpression = (node: ts.CallExpression) => {
+    const { expression, typeArguments, arguments: args } = node;
+
+    // Check if the call expression is 'defineProps'
+    if (ts.isIdentifier(expression) && expression.text === "defineProps") {
+      if (typeArguments && typeArguments.length > 0) {
+        const typeArgument = typeArguments[0];
+        if (
+          ts.isTypeReferenceNode(typeArgument) &&
+          ts.isIdentifier(typeArgument.typeName)
+        ) {
+          genericArgument = typeArgument.typeName.text;
+        }
+      }
+    }
+
+    // Check if the call expression is 'defineEmits'
+    if (ts.isIdentifier(expression) && expression.text === "defineEmits") {
+      outputChannel.appendLine("defineEmits");
+      if (typeArguments && typeArguments.length > 0) {
+        const typeArgument = typeArguments[0];
+        if (ts.isTypeLiteralNode(typeArgument)) {
+          typeArgument.members.forEach((member) => {
+            if (ts.isCallSignatureDeclaration(member)) {
+              member.parameters.forEach((parameter) => {
+                if (
+                  ts.isParameter(parameter) &&
+                  parameter.type &&
+                  ts.isLiteralTypeNode(parameter.type) &&
+                  ts.isLiteralExpression(parameter.type.literal)
+                ) {
+                  if (
+                    parameter.type.literal.kind === ts.SyntaxKind.NullKeyword
+                  ) {
+                    emitEvents.push("null");
+                  } else {
+                    emitEvents.push(parameter.type.literal.text);
+                  }
+                }
+              });
+            }
+          });
+        }
+      }
+    }
+
+    if (ts.isIdentifier(expression) && expression.text === "withDefaults") {
+      // Extract default options from the arguments
+      if (args.length > 1 && ts.isObjectLiteralExpression(args[1])) {
+        defaultOptions = args[1].properties.reduce(
+          (acc: Record<string, string>, prop) => {
+            if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
+              acc[prop.name.text] = prop.initializer.getText();
+            }
+            return acc;
+          },
+          {}
+        );
+      }
+    }
+
+    // Check arguments of the call expression
+    args.forEach((arg) => {
+      if (ts.isCallExpression(arg)) {
+        extractFromCallExpression(arg);
+      }
+    });
+  };
+
+  const visitor = (node: ts.Node): ts.VisitResult<ts.Node> => {
+    if (ts.isVariableDeclaration(node)) {
+      const { initializer } = node;
+      if (initializer && ts.isCallExpression(initializer)) {
+        extractFromCallExpression(initializer);
+      }
+    }
+
+    ts.forEachChild(node, visitor);
+
+    return node;
+  };
+
+  sourceFile.statements.forEach(visitor);
+
+  outputChannel.appendLine(`emitEvents: ${emitEvents}`);
+
+  return {
+    genericArgument: genericArgument || "",
+    defaultOptions: defaultOptions || {},
+    emitEvents,
+  };
+}
+
+function getAbsolutePath(selectedFilePath: string, originPath: string) {
+  const directoryPath = path.dirname(selectedFilePath);
+  const absolutePath = path.resolve(directoryPath, originPath);
+  return absolutePath;
 }
