@@ -3,7 +3,7 @@
   "displayName": "storybook-generator-vue",
   "description": "",
   "publisher": "Youngwoo",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "engines": {
     "vscode": "^1.82.0"
   },
@@ -46,8 +46,9 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run copy",
     "compile": "tsc -p ./",
+    "copy": "cp -r src/templates out/",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src --ext ts",

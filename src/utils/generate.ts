@@ -30,7 +30,7 @@ export async function generateStorybook(
       const templatePath = path.join(
         __dirname,
         "../../",
-        "/src/templates",
+        "./templates",
         "storybook.ejs"
       );
       const template = fs.readFileSync(templatePath, "utf-8");
