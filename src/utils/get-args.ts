@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const outputChannel = vscode.window.createOutputChannel("Ywlee");
-const config = vscode.workspace.getConfiguration("test-extension-vue");
+const config = vscode.workspace.getConfiguration("storybook-generator-vue");
 const alias = config.get("alias") as Record<string, string>;
 
 /**
